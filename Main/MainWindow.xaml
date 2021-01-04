@@ -63,6 +63,7 @@
                                         <ColumnDefinition Width="50"></ColumnDefinition>
                                         <ColumnDefinition></ColumnDefinition>
                                         <ColumnDefinition Width="50"></ColumnDefinition>
+                                        <ColumnDefinition Width="50"></ColumnDefinition>
                                     </Grid.ColumnDefinitions>
 
                                     <Grid>
@@ -89,8 +90,14 @@
                                     </Grid>
 
                                     <Grid Grid.Column="2">
+                                        <Button x:Name="btnDownload"
+                                                Click="btnDownload_Click">Download</Button>
+                                    </Grid>
+
+                                    <Grid Grid.Column="3">
                                         <Button Click="Button_Click">Play</Button>
                                     </Grid>
+
                                 </Grid>
                             </Border>
                         </DataTemplate>

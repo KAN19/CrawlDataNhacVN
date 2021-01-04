@@ -2,9 +2,12 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,7 +19,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-using Leaf.xNet; 
+using System.Windows.Threading;
+using Leaf.xNet;
 
 
 namespace Main
@@ -38,24 +42,32 @@ namespace Main
 
         public ObservableCollection<Song> ListSong { get => listSong; set { listSong = value; lsbTopSong.ItemsSource = ListSong; } }
 
-        
         public MainWindow()
         {
             InitializeComponent();
             ucSongInfor.BackToMain += UcSongInfor_BackToMain;
 
             this.DataContext = this;
-            
-            ListSong = new ObservableCollection<Song>(); 
 
-           
+            ListSong = new ObservableCollection<Song>();
+
         }
 
         private void CrawlData(string searching)
         {
             HttpRequest http = new HttpRequest();
-            string searchUrl = @"https://nhac.vn/search?q=" + searching;  
-            string htmlSearch = http.Get(searchUrl).ToString();
+            string searchUrl = @"https://nhac.vn/search?q=" + searching;
+            string htmlSearch = "";
+            try
+            {
+                htmlSearch = http.Get(searchUrl).ToString();
+            }
+            catch (Exception)
+            {
+
+
+            }
+
             string dataPattern = @"<div class=""box_content"">(.*?)<div class=""video_widget video_list_large box""";
             var dsData = Regex.Matches(htmlSearch, dataPattern, RegexOptions.Singleline);
 
@@ -66,7 +78,7 @@ namespace Main
                 dataPattern = @"<li class=""song-list-new-item""(.*?)</li>";
                 var listSongHTML = Regex.Matches(dsBaiHat, dataPattern, RegexOptions.Singleline);
 
-                ListSong.Clear(); 
+                ListSong.Clear();
 
                 foreach (var item in listSongHTML)
                 {
@@ -91,22 +103,40 @@ namespace Main
                     int indexImage = imageString.IndexOf("<img src=");
                     string imageLink = imageString.Substring(indexImage, imageString.Length - indexImage - 1).Replace("<img src=\"", "");
 
-
                     // Loc ra link nhac 
                     var linkMusic = Regex.Matches(item.ToString(), @"href=""(.*?)""", RegexOptions.Singleline);
                     string stringMusic = linkMusic[0].ToString();
                     int indexMusic = stringMusic.IndexOf("href=");
-                    string musicLinkfinal = stringMusic.Substring(indexMusic, stringMusic.Length - indexMusic - 1).Replace("href=\"", ""); 
+                    string musicLinkfinal = stringMusic.Substring(indexMusic, stringMusic.Length - indexMusic - 1).Replace("href=\"", "");
 
-                    ListSong.Add(new Song(songName, singerName, imageLink, musicLinkfinal));
+                    //Lay link download
+                    string downloadLink = GetDownloadLink(musicLinkfinal);
+
+                    ListSong.Add(new Song(songName, singerName, imageLink, musicLinkfinal, downloadLink));
                 }
-               
+
             }
             catch (Exception)
             {
 
             }
-           
+
+        }
+
+        private string GetDownloadLink(string link)
+        {
+            HttpRequest http = new HttpRequest();
+            string htmlResult = http.Get(link).ToString();
+
+            var htmlDownloadLink = Regex.Match(htmlResult, @"""file"":""(.*?)""", RegexOptions.Singleline);
+            string tag_DownloadLink = htmlDownloadLink.ToString();
+            string final_DownloadString = tag_DownloadLink.Replace("\"file\":\"", "");
+            final_DownloadString = final_DownloadString.Replace(@"\", "");
+
+            if (!String.IsNullOrEmpty(final_DownloadString))
+                final_DownloadString = final_DownloadString.Substring(0, final_DownloadString.Length - 1);
+
+            return final_DownloadString;
         }
 
         private void UcSongInfor_BackToMain(object sender, EventArgs e)
@@ -117,16 +147,46 @@ namespace Main
 
         private void Button_Click(object sender, RoutedEventArgs e)
         {
-            gridTop10.Visibility = Visibility.Hidden;
-            ucSongInfor.Visibility = Visibility.Visible;
+            //gridTop10.Visibility = Visibility.Hidden;
+            //ucSongInfor.Visibility = Visibility.Visible;
+
+            Song song = (sender as Button).DataContext as Song;
+            Process.Start(song.LinkMusic);
         }
 
         private void btnSearch_Click(object sender, RoutedEventArgs e)
         {
             string searchString = searchContent.Text;
             searchString = searchString.Replace(" ", "+");
-           
+
             CrawlData(searchString);
         }
+        private void btnDownload_Click(object sender, RoutedEventArgs e)
+        {
+            Song song = (sender as Button).DataContext as Song;
+
+            Download(song);
+
+        }
+
+        private void Download(Song song)
+        {
+            new Thread(
+                () =>
+           {
+               if (!String.IsNullOrEmpty(song.LinkDownload))
+               {
+                   WebClient webClient = new WebClient();
+                   //Thay doi path o day
+                   webClient.DownloadFile(song.LinkDownload, @"D:\" + song.SongName + ".mp3");
+               }
+               else
+               {
+                   MessageBox.Show("Bai nay khong cho phep tai :((");
+               }
+           }).Start();
+
+        }
+
     }
 }
